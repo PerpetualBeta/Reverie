@@ -7,19 +7,22 @@ MIN_MACOS      = 14.0
 SDK            = $(shell xcrun --sdk macosx --show-sdk-path)
 SWIFT          = swiftc
 
-# Saver sources — every .swift in Sources/ except the TestApp harness.
-SAVER_SOURCES  = Sources/ReverieView.swift \
-                 Sources/ReverieEngine.swift \
-                 Sources/Hypotrochoid.swift \
-                 Sources/Palettes.swift \
-                 Sources/Pulsation.swift
+# Saver sources at project root (Release Manager's swiftc discovery only
+# scans the top level — convention shared with Daily News, MenuTidy etc).
+# The test-app harness lives in TestApp/ to keep its `main.swift` out of
+# the saver's auto-discovery.
+SAVER_SOURCES  = ReverieView.swift \
+                 ReverieEngine.swift \
+                 Hypotrochoid.swift \
+                 Palettes.swift \
+                 Pulsation.swift
 
-# Test app — same engine, plain NSWindow harness, no ScreenSaver framework.
-TESTAPP_SOURCES = Sources/TestApp/main.swift \
-                  Sources/ReverieEngine.swift \
-                  Sources/Hypotrochoid.swift \
-                  Sources/Palettes.swift \
-                  Sources/Pulsation.swift
+# Test app — same engine sources plus the NSWindow harness.
+TESTAPP_SOURCES = TestApp/main.swift \
+                  ReverieEngine.swift \
+                  Hypotrochoid.swift \
+                  Palettes.swift \
+                  Pulsation.swift
 
 SWIFT_FLAGS    = \
     -target $(ARCH)-apple-macos$(MIN_MACOS) \
