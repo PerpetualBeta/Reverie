@@ -1,83 +1,91 @@
-BUNDLE_NAME    = Reverie
-SAVER_NAME     = $(BUNDLE_NAME).saver
-INSTALL_DIR    = $(HOME)/Library/Screen\ Savers
+# Reverie — meditative roulette-curve screensaver.
+#
+# This Makefile drives both day-to-day dev iteration AND the release
+# pipeline. The release pipeline is delegated to the shared `release.mk`
+# include (in PerpetualBeta/jorvik-release); the dev targets below are
+# Reverie-specific and intentionally fast — no stamping, signing, or
+# notarisation.
 
-ARCH           = arm64
-MIN_MACOS      = 14.0
-SDK            = $(shell xcrun --sdk macosx --show-sdk-path)
-SWIFT          = swiftc
+# ─── Project identity ────────────────────────────────────────────────────────
+BUNDLE_NAME      := Reverie
+BUNDLE_TYPE      := saver
+PRODUCT_NAME     := Reverie.saver
+BUNDLE_ID        := cc.jorviksoftware.Reverie
+BUILD_SYSTEM     := swiftc
 
-# Saver sources at project root (Release Manager's swiftc discovery only
-# scans the top level — convention shared with Daily News, MenuTidy etc).
-# The test-app harness lives in TestApp/ to keep its `main.swift` out of
-# the saver's auto-discovery.
-SAVER_SOURCES  = ReverieView.swift \
-                 ReverieEngine.swift \
-                 Hypotrochoid.swift \
-                 Palettes.swift \
-                 Pulsation.swift
+SWIFT_FRAMEWORKS := Cocoa ScreenSaver CoreGraphics
+SWIFT_SOURCES    := ReverieView.swift \
+                    ReverieEngine.swift \
+                    Hypotrochoid.swift \
+                    Palettes.swift \
+                    Pulsation.swift
 
-# Test app — same engine sources plus the NSWindow harness.
-TESTAPP_SOURCES = TestApp/main.swift \
-                  ReverieEngine.swift \
-                  Hypotrochoid.swift \
-                  Palettes.swift \
-                  Pulsation.swift
+PACKAGE_TYPE     := pkg
+ALSO_SHIP_PKG    := false
 
-SWIFT_FLAGS    = \
-    -target $(ARCH)-apple-macos$(MIN_MACOS) \
-    -sdk $(SDK) \
-    -framework Cocoa \
-    -framework ScreenSaver \
-    -framework CoreGraphics \
-    -emit-library \
-    -module-name $(BUNDLE_NAME) \
-    -O
+# Release.mk lives in a sibling repo (PerpetualBeta/jorvik-release). The
+# relative path resolves correctly from any project under
+# ~/Desktop/Jorvik Software/. We cannot use an env-var override because the
+# absolute path contains a space — and Make's `include` treats whitespace
+# as a path-list separator, so an unescaped space splits the include into
+# multiple non-existent paths. RM-driven builds run with cwd = sourcePath,
+# so the relative path works there too.
+include ../jorvik-release/release.mk
 
-TESTAPP_FLAGS  = \
-    -target $(ARCH)-apple-macos$(MIN_MACOS) \
-    -sdk $(SDK) \
-    -framework Cocoa \
-    -framework CoreGraphics \
-    -module-name ReverieTest \
-    -Onone
+# Override release.mk's default goal: a bare `make` should build a fast
+# local saver, not run a full release pipeline.
+.DEFAULT_GOAL := dev-build
 
-BUNDLE_MACOS   = $(SAVER_NAME)/Contents/MacOS
-BUNDLE_RES     = $(SAVER_NAME)/Contents/Resources
+# ─── Dev iteration targets (Reverie-specific, not part of release.mk) ────────
+# These are *separate* from the `release.mk` pipeline. They build a fast,
+# ad-hoc-signed bundle for installing into ~/Library/Screen Savers/ during
+# development, and a plain NSWindow harness for visual iteration of the
+# engine without touching the screensaver host.
 
-.PHONY: build install clean testapp run icon pkg
+.PHONY: dev-build dev-install testapp run icon
 
-build: $(SAVER_NAME)
+LOCAL_BUNDLE := Reverie.saver
+LOCAL_INSTALL_DIR := $(HOME)/Library/Screen Savers
 
-$(SAVER_NAME): $(SAVER_SOURCES) Info.plist
-	@echo "→ Compiling saver..."
-	@mkdir -p $(BUNDLE_MACOS) $(BUNDLE_RES)
-	$(SWIFT) $(SWIFT_FLAGS) $(SAVER_SOURCES) -o $(BUNDLE_MACOS)/$(BUNDLE_NAME)
-	@echo "→ Copying Info.plist..."
-	cp Info.plist $(SAVER_NAME)/Contents/Info.plist
+# Test app — same engine sources plus the NSWindow harness in TestApp/.
+TESTAPP_SOURCES := TestApp/main.swift \
+                   ReverieEngine.swift \
+                   Hypotrochoid.swift \
+                   Palettes.swift \
+                   Pulsation.swift
+
+# Single-arch fast build for local install. Bypasses release.mk's universal
+# binary + version stamping for speed.
+dev-build:
+	@echo "→ dev build (arm64 only, ad-hoc)"
+	@mkdir -p $(LOCAL_BUNDLE)/Contents/MacOS $(LOCAL_BUNDLE)/Contents/Resources
+	swiftc -O -target arm64-apple-macos14.0 -sdk $(SDK) \
+		-framework Cocoa -framework ScreenSaver -framework CoreGraphics \
+		-emit-library -module-name $(BUNDLE_NAME) \
+		-o $(LOCAL_BUNDLE)/Contents/MacOS/$(BUNDLE_NAME) \
+		$(SWIFT_SOURCES)
+	cp Info.plist $(LOCAL_BUNDLE)/Contents/Info.plist
 	@if [ -f Resources/AppIcon.icns ]; then \
-		echo "→ Copying icon..."; \
-		cp Resources/AppIcon.icns $(BUNDLE_RES)/AppIcon.icns; \
+		cp Resources/AppIcon.icns $(LOCAL_BUNDLE)/Contents/Resources/AppIcon.icns; \
 	fi
-	@echo "→ Done: $(SAVER_NAME)"
+	codesign --force --sign - $(LOCAL_BUNDLE)
+	@echo "→ Done: $(LOCAL_BUNDLE)"
 
-install: build
-	@echo "→ Ad-hoc signing..."
-	xattr -cr $(SAVER_NAME)
-	find $(SAVER_NAME) -name "._*" -delete 2>/dev/null || true
-	codesign --force --sign - $(SAVER_NAME)
-	@echo "→ Installing to $(INSTALL_DIR)..."
-	@mkdir -p $(INSTALL_DIR)
-	rm -rf $(INSTALL_DIR)/$(SAVER_NAME)
-	cp -R $(SAVER_NAME) $(INSTALL_DIR)/$(SAVER_NAME)
-	@echo "→ Restarting screensaver host..."
+dev-install: dev-build
+	@echo "→ Installing to $(LOCAL_INSTALL_DIR)..."
+	@mkdir -p "$(LOCAL_INSTALL_DIR)"
+	rm -rf "$(LOCAL_INSTALL_DIR)/$(LOCAL_BUNDLE)"
+	cp -R $(LOCAL_BUNDLE) "$(LOCAL_INSTALL_DIR)/$(LOCAL_BUNDLE)"
 	-killall ScreenSaverEngine 2>/dev/null || true
 	-killall legacyScreenSaver 2>/dev/null || true
 	@echo "→ Installed. Open System Settings → Screen Saver to activate."
 
-testapp: $(TESTAPP_SOURCES)
+testapp:
 	@echo "→ Building test app..."
-	$(SWIFT) $(TESTAPP_FLAGS) $(TESTAPP_SOURCES) -o ReverieTest
+	swiftc -target arm64-apple-macos14.0 -sdk $(SDK) \
+		-framework Cocoa -framework CoreGraphics \
+		-module-name ReverieTest -Onone \
+		$(TESTAPP_SOURCES) -o ReverieTest
 	@echo "→ Done: ReverieTest"
 
 run: testapp
@@ -86,10 +94,3 @@ run: testapp
 icon:
 	@echo "→ Generating icon..."
 	swift generate_icon.swift
-
-pkg: build
-	@echo "→ Building installer pkg..."
-	bash Installer/build_pkg.sh
-
-clean:
-	rm -rf $(SAVER_NAME) ReverieTest Resources/Reverie.iconset _BuildOutput
