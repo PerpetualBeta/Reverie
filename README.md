@@ -5,7 +5,7 @@ A meditative macOS screensaver. Roulette curves — hypotrochoids and epitrochoi
 ## Requirements
 
 - macOS 14 (Sonoma) or later
-- Apple Silicon
+- Universal binary (Apple Silicon and Intel)
 
 ## Installation
 
@@ -39,17 +39,19 @@ The brand contract is "no preferences", so there's nothing to configure — just
 
 ## Building from Source
 
+Reverie's `Makefile` does double duty: dev-iteration targets for fast local work, plus the shared Jorvik `release.mk` (in the [`jorvik-release`](https://github.com/PerpetualBeta/jorvik-release) sibling repo) for full sign/notarise/package release builds. GNU Make 4+ is required (`brew install make` installs it as `gmake`; macOS bundles 3.81 which lacks the `.ONESHELL` and `.SHELLFLAGS` directives `release.mk` uses).
+
 ```bash
 git clone https://github.com/PerpetualBeta/Reverie.git
 cd Reverie
-make install        # builds + installs to ~/Library/Screen Savers/
+gmake dev-install      # arm64-only ad-hoc build → ~/Library/Screen Savers/
 ```
 
 For visual iteration without re-installing the screensaver every time:
 
 ```bash
-make run            # builds the test app, opens an NSWindow with the
-                    # same engine the .saver uses
+gmake run              # builds the test app, opens an NSWindow with the
+                       # same engine the .saver uses
 ```
 
 To rebuild the icon (a self-referential hypotrochoid in the brand colour):
@@ -58,13 +60,13 @@ To rebuild the icon (a self-referential hypotrochoid in the brand colour):
 swift generate_icon.swift
 ```
 
-To produce a distribution `.pkg`:
+To produce a fully signed, notarised, and stapled `.pkg`:
 
 ```bash
-make pkg            # → _BuildOutput/Reverie.pkg
+gmake release          # → _BuildOutput/Reverie.pkg
 ```
 
-The local build is ad-hoc-signed, suitable for personal installation. Release Manager performs Developer ID signing and notarisation when cutting an official release.
+The dev targets use ad-hoc signing for speed and are suitable for personal installation. The `release` target performs Developer ID signing and notarisation through the shared `release.mk` pipeline; Release Manager invokes the same target when cutting an official release.
 
 ## Updates
 
