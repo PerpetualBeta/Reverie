@@ -63,7 +63,7 @@ swift generate_icon.swift
 To produce a fully signed, notarised, and stapled `.pkg`:
 
 ```bash
-gmake release          # → _BuildOutput/Reverie.pkg
+gmake release          # → .build/Reverie.pkg
 ```
 
 The dev targets use ad-hoc signing for speed and are suitable for personal installation. The `release` target performs Developer ID signing and notarisation through the shared `release.mk` pipeline; Release Manager invokes the same target when cutting an official release.
